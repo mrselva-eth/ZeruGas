@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme colors */
+    --background: 233 233 233; /* #e9e9e9 */
+    --foreground: 0 0 0; /* #000000 */
+    --card: 255 255 255; /* #ffffff */
+    --card-foreground: 0 0 0;
+    --popover: 255 255 255;
+    --popover-foreground: 0 0 0;
+    --primary: 26 27 48; /* #1A1B30 */
+    --primary-foreground: 255 255 255;
+    --secondary: 245 245 245; /* #f5f5f5 */
+    --secondary-foreground: 64 64 64;
+    --muted: 245 245 245;
+    --muted-foreground: 115 115 115;
+    --accent: 240 240 240; /* #f0f0f0 */
+    --accent-foreground: 0 0 0;
+    --destructive: 220 53 69;
+    --destructive-foreground: 255 255 255;
+    --border: 200 200 200; /* #c8c8c8 */
+    --input: 255 255 255; /* #ffffff */
+    --ring: 26 27 48; /* #1A1B30 */
+    --chart-1: 98 126 234; /* Ethereum */
+    --chart-2: 130 71 229; /* Polygon */
+    --chart-3: 40 160 240; /* Arbitrum */
+    --chart-4: 255 193 7; /* Warning/accent */
+    --chart-5: 40 167 69; /* Success/accent */
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", system-ui, sans-serif;
+    background-color: #e9e9e9 !important; /* Force light background */
+    color: #000000 !important; /* Force black text */
+  }
+
+  /* Force light theme globally */
+  html {
+    color-scheme: light;
+  }
+
+  /* Force light theme on all elements */
+  .card,
+  [data-radix-collection-item] {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #c8c8c8 !important;
+  }
+
+  /* Custom scrollbar for light theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #e9e9e9;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #c8c8c8;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #1a1b30;
+  }
+}
+
+/* Custom utility classes for theme */
+@layer utilities {
+  .theme-light {
+    background-color: #e9e9e9 !important;
+    color: #000000 !important;
+  }
+
+  .theme-card {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #c8c8c8 !important;
+  }
+
+  .theme-primary {
+    color: #1a1b30 !important;
+  }
+
+  .theme-bg-primary {
+    background-color: #1a1b30 !important;
+  }
+
+  .theme-text-muted {
+    color: #737373 !important;
+  }
+}
