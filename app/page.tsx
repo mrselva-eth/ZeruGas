@@ -11,11 +11,11 @@ import { ChatbotPanel } from "@/components/chatbot/chatbot-panel"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { RefreshCw, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { fetchTokenPrices } from "@/lib/store/gas-store"
 import Image from "next/image"
+import { ConnectionStatus } from "@/components/connection-status"
 
 export default function Dashboard() {
-  const { initializeConnections, mode, tokenPrices } = useGasStore()
+  const { initializeConnections, mode, tokenPrices, refreshPrices } = useGasStore()
 
   useEffect(() => {
     initializeConnections()
@@ -25,11 +25,8 @@ export default function Dashboard() {
     return Date.now() - lastUpdated > 5 * 60 * 1000
   }
 
-  const refreshPrices = () => {
-    const { providers } = useGasStore.getState()
-    if (providers.ethereum) {
-      fetchTokenPrices(providers.ethereum)
-    }
+  const handleRefreshPrices = () => {
+    refreshPrices()
   }
 
   // Animation texts for heading and description
@@ -98,12 +95,13 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={refreshPrices}
+                onClick={handleRefreshPrices}
                 className="border-gray-400 text-gray-700 bg-white hover:bg-gray-100 hover:text-black font-content"
               >
                 <RefreshCw className="h-3 w-3" />
               </Button>
             </div>
+            <ConnectionStatus />
             <ModeToggle />
           </div>
         </div>

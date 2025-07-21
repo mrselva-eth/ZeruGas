@@ -47,6 +47,7 @@ export interface GasState {
   updateTokenPrice: (token: keyof Omit<TokenPrices, "lastUpdated">, price: number) => void
   initializeConnections: () => void
   cleanup: () => void
+  refreshPrices: () => void
 }
 
 const initialChainData: ChainData = {
@@ -103,19 +104,57 @@ export const useGasStore = create<GasState>()(
 
     initializeConnections: async () => {
       const state = get()
-      if (state.isConnected) return
+      if (state.isConnected) {
+        console.log("🔄 Already connected, skipping initialization")
+        return
+      }
+
+      console.log("🚀 Initializing WebSocket connections...")
 
       try {
-        // Initialize WebSocket providers
-        const ethProvider = new ethers.providers.WebSocketProvider(
-          process.env.NEXT_PUBLIC_ETHEREUM_WS_URL || "wss://eth-mainnet.ws.alchemyapi.io/v2/demo",
-        )
+        // Check if environment variables are set
+        const ethUrl = process.env.NEXT_PUBLIC_ETHEREUM_WS_URL
+        const polygonUrl = process.env.NEXT_PUBLIC_POLYGON_WS_URL
+        const arbitrumUrl = process.env.NEXT_PUBLIC_ARBITRUM_WS_URL
+
+        console.log("🔧 Environment URLs:", {
+          ethereum: ethUrl ? "✅ Set" : "❌ Missing",
+          polygon: polygonUrl ? "✅ Set" : "❌ Missing",
+          arbitrum: arbitrumUrl ? "✅ Set" : "❌ Missing",
+        })
+
+        // Use fallback URLs if environment variables are not set
+        const ethProvider = new ethers.providers.WebSocketProvider(ethUrl || "wss://ethereum-rpc.publicnode.com")
         const polygonProvider = new ethers.providers.WebSocketProvider(
-          process.env.NEXT_PUBLIC_POLYGON_WS_URL || "wss://polygon-mainnet.ws.alchemyapi.io/v2/demo",
+          polygonUrl || "wss://polygon-bor-rpc.publicnode.com",
         )
         const arbitrumProvider = new ethers.providers.WebSocketProvider(
-          process.env.NEXT_PUBLIC_ARBITRUM_WS_URL || "wss://arb-mainnet.ws.alchemyapi.io/v2/demo",
+          arbitrumUrl || "wss://arbitrum-one-rpc.publicnode.com",
         )
+
+        // Test connections
+        console.log("🧪 Testing WebSocket connections...")
+
+        try {
+          await ethProvider.getNetwork()
+          console.log("✅ Ethereum connection successful")
+        } catch (error) {
+          console.error("❌ Ethereum connection failed:", error)
+        }
+
+        try {
+          await polygonProvider.getNetwork()
+          console.log("✅ Polygon connection successful")
+        } catch (error) {
+          console.error("❌ Polygon connection failed:", error)
+        }
+
+        try {
+          await arbitrumProvider.getNetwork()
+          console.log("✅ Arbitrum connection successful")
+        } catch (error) {
+          console.error("❌ Arbitrum connection failed:", error)
+        }
 
         set({
           providers: {
@@ -132,10 +171,16 @@ export const useGasStore = create<GasState>()(
         setupBlockListeners(polygonProvider, "polygon")
         setupBlockListeners(arbitrumProvider, "arbitrum")
 
-        // Start price tracking for both ETH and MATIC
-        setupPriceTracking(ethProvider)
+        // Start Uniswap V3 price tracking for ETH/USD
+        setupUniswapV3PriceTracking(ethProvider)
+
+        // Start Chainlink price tracking for MATIC (since it's not in the main ETH/USDC pool)
+        setupMaticPriceTracking(ethProvider)
+
+        console.log("🎉 All connections initialized successfully!")
       } catch (error) {
-        console.error("Failed to initialize connections:", error)
+        console.error("💥 Failed to initialize connections:", error)
+        set({ isConnected: false })
       }
     },
 
@@ -159,19 +204,50 @@ export const useGasStore = create<GasState>()(
       }
       set({ providers: {}, uniswapProvider: undefined, isConnected: false })
     },
+    refreshPrices: () => {
+      const { providers } = get()
+      if (providers.ethereum) {
+        // Refresh ETH price from Uniswap V3
+        const UNISWAP_V3_POOL_ABI = [
+          "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+        ]
+        const poolContract = new ethers.Contract(
+          "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+          UNISWAP_V3_POOL_ABI,
+          providers.ethereum,
+        )
+        fetchInitialUniswapPrice(poolContract)
+
+        // Refresh MATIC price from Chainlink
+        fetchMaticPrice(providers.ethereum)
+      }
+    },
   })),
 )
 
 function setupBlockListeners(provider: ethers.providers.WebSocketProvider, chain: keyof GasState["chains"]) {
+  console.log(`🔗 Setting up block listener for ${chain}`)
+
   provider.on("block", async (blockNumber) => {
     try {
+      console.log(`📦 New block on ${chain}: ${blockNumber}`)
       const block = await provider.getBlock(blockNumber)
-      if (!block) return
+      if (!block) {
+        console.warn(`⚠️ No block data received for ${chain} block ${blockNumber}`)
+        return
+      }
 
       const baseFee = block.baseFeePerGas ? Number.parseFloat(ethers.utils.formatUnits(block.baseFeePerGas, "gwei")) : 0
 
       // Estimate priority fee (simplified)
       const priorityFee = chain === "polygon" ? 30 : chain === "arbitrum" ? 0.1 : 2
+
+      console.log(`⛽ ${chain} gas data:`, {
+        blockNumber,
+        baseFee: baseFee.toFixed(2),
+        priorityFee,
+        totalFee: (baseFee + priorityFee).toFixed(2),
+      })
 
       const gasPoint: GasPoint = {
         timestamp: block.timestamp * 1000,
@@ -186,97 +262,182 @@ function setupBlockListeners(provider: ethers.providers.WebSocketProvider, chain
         history: [...useGasStore.getState().chains[chain].history.slice(-95), gasPoint], // Keep last 96 points (24 hours of 15-min intervals)
       })
     } catch (error) {
-      console.error(`Error processing block for ${chain}:`, error)
+      console.error(`❌ Error processing block for ${chain}:`, error)
     }
+  })
+
+  // Add connection event listeners
+  provider.on("connect", () => {
+    console.log(`✅ ${chain} WebSocket connected`)
+  })
+
+  provider.on("disconnect", (error) => {
+    console.error(`❌ ${chain} WebSocket disconnected:`, error)
+  })
+
+  provider.on("error", (error) => {
+    console.error(`❌ ${chain} WebSocket error:`, error)
   })
 }
 
-function setupPriceTracking(provider: ethers.providers.WebSocketProvider) {
-  // Fetch initial prices
-  fetchTokenPrices(provider)
+// Uniswap V3 ETH/USDC Pool: 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640
+const UNISWAP_V3_ETH_USDC_POOL = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
 
-  // Update prices every 60 seconds (increased from 30s to reduce API calls)
+function setupUniswapV3PriceTracking(provider: ethers.providers.WebSocketProvider) {
+  console.log("🦄 Setting up Uniswap V3 ETH/USDC price tracking...")
+
+  // Uniswap V3 Pool ABI - we only need the Swap event
+  const UNISWAP_V3_POOL_ABI = [
+    "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)",
+    "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+  ]
+
+  const poolContract = new ethers.Contract(UNISWAP_V3_ETH_USDC_POOL, UNISWAP_V3_POOL_ABI, provider)
+
+  // Get initial price from slot0
+  fetchInitialUniswapPrice(poolContract)
+
+  // Listen for Swap events
+  poolContract.on("Swap", (sender, recipient, amount0, amount1, sqrtPriceX96, liquidity, tick, event) => {
+    try {
+      console.log("🔄 Uniswap V3 Swap event detected")
+
+      // Calculate ETH/USD price from sqrtPriceX96
+      // Formula: price = (sqrtPriceX96^2 * 10^12) / (2^192)
+      // Note: In ETH/USDC pool, token0 is USDC and token1 is ETH
+      // So we need to invert the price to get ETH/USD
+
+      const sqrtPrice = sqrtPriceX96.toBigNumber()
+      const Q96 = ethers.BigNumber.from(2).pow(96)
+      const Q192 = ethers.BigNumber.from(2).pow(192)
+
+      // Calculate price as (sqrtPriceX96^2) / (2^192)
+      const priceRaw = sqrtPrice.mul(sqrtPrice).div(Q192)
+
+      // Convert to decimal considering USDC has 6 decimals and ETH has 18 decimals
+      // Price is USDC per ETH, so we need to adjust for decimal differences
+      const price = Number.parseFloat(ethers.utils.formatUnits(priceRaw, 6)) // USDC has 6 decimals
+
+      // Since this gives us USDC per ETH, we need to invert to get ETH per USDC
+      const ethPrice = 1 / price
+
+      console.log("💱 Uniswap V3 ETH price calculation:", {
+        sqrtPriceX96: sqrtPriceX96.toString(),
+        priceRaw: priceRaw.toString(),
+        usdcPerEth: price.toFixed(6),
+        ethPerUsdc: ethPrice.toFixed(6),
+        finalEthPrice: (ethPrice * 1000000).toFixed(2), // Convert to proper USD price
+      })
+
+      // The final ETH price in USD
+      const finalEthPrice = ethPrice * 1000000 // Adjust for USDC decimals
+
+      // Validate price range
+      if (finalEthPrice > 500 && finalEthPrice < 10000) {
+        useGasStore.getState().updateTokenPrice("ETH", finalEthPrice)
+        console.log(`✅ ETH price updated from Uniswap V3: $${finalEthPrice.toFixed(2)}`)
+      } else {
+        console.warn(`⚠️ ETH price $${finalEthPrice} is outside expected range`)
+      }
+    } catch (error) {
+      console.error("❌ Error processing Uniswap V3 Swap event:", error)
+    }
+  })
+
+  // Fallback: Fetch price every 30 seconds in case no swaps occur
   const priceInterval = setInterval(() => {
-    fetchTokenPrices(provider)
-  }, 60000)
+    fetchInitialUniswapPrice(poolContract)
+  }, 30000)
 
   // Store interval reference for cleanup
   ;(provider as any)._priceInterval = priceInterval
 }
 
-async function fetchTokenPrices(provider: ethers.providers.WebSocketProvider) {
-  console.log("🔄 Fetching token prices...")
+async function fetchInitialUniswapPrice(poolContract: ethers.Contract) {
+  try {
+    console.log("📊 Fetching current Uniswap V3 slot0 data...")
 
-  // Fetch both ETH and MATIC prices using Chainlink price feeds
-  await Promise.all([
-    fetchChainlinkPrice(provider, "ETH", "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"), // ETH/USD
-    fetchChainlinkPrice(provider, "MATIC", "0x7bAC85A8a13A4BcD8abb3eB7d6b4d632c5a57676"), // MATIC/USD
-  ])
+    const slot0 = await poolContract.slot0()
+    const sqrtPriceX96 = slot0.sqrtPriceX96
 
-  const { tokenPrices } = useGasStore.getState()
-  console.log("💰 Current prices:", {
-    ETH: `$${tokenPrices.ETH.toFixed(2)}`,
-    MATIC: `$${tokenPrices.MATIC.toFixed(4)}`,
-    lastUpdated: {
-      ETH: new Date(tokenPrices.lastUpdated.ETH).toLocaleTimeString(),
-      MATIC: new Date(tokenPrices.lastUpdated.MATIC).toLocaleTimeString(),
-    },
-  })
+    console.log("🔍 Uniswap V3 slot0 data:", {
+      sqrtPriceX96: sqrtPriceX96.toString(),
+      tick: slot0.tick.toString(),
+    })
+
+    // Calculate ETH/USD price from sqrtPriceX96
+    const Q192 = ethers.BigNumber.from(2).pow(192)
+    const priceRaw = sqrtPriceX96.mul(sqrtPriceX96).div(Q192)
+
+    // Convert to decimal considering USDC has 6 decimals
+    const price = Number.parseFloat(ethers.utils.formatUnits(priceRaw, 6))
+    const ethPrice = (1 / price) * 1000000 // Adjust for USDC decimals
+
+    console.log("💰 Calculated ETH price from slot0:", {
+      priceRaw: priceRaw.toString(),
+      usdcPerEth: price.toFixed(6),
+      ethPrice: ethPrice.toFixed(2),
+    })
+
+    // Validate and update price
+    if (ethPrice > 500 && ethPrice < 10000) {
+      useGasStore.getState().updateTokenPrice("ETH", ethPrice)
+      console.log(`✅ ETH price updated from Uniswap V3 slot0: $${ethPrice.toFixed(2)}`)
+    } else {
+      console.warn(`⚠️ ETH price $${ethPrice} is outside expected range, using fallback`)
+      useGasStore.getState().updateTokenPrice("ETH", 2500) // Fallback price
+    }
+  } catch (error) {
+    console.error("❌ Error fetching Uniswap V3 price:", error)
+    // Use fallback price
+    useGasStore.getState().updateTokenPrice("ETH", 2500)
+  }
 }
 
-async function fetchChainlinkPrice(
-  provider: ethers.providers.WebSocketProvider,
-  token: keyof Omit<TokenPrices, "lastUpdated">,
-  feedAddress: string,
-) {
-  try {
-    console.log(`📡 Fetching ${token} price from Chainlink feed: ${feedAddress}`)
+// Keep Chainlink for MATIC price since it's not in the main ETH/USDC pool
+function setupMaticPriceTracking(provider: ethers.providers.WebSocketProvider) {
+  // Fetch initial MATIC price
+  fetchMaticPrice(provider)
 
-    // ABI for Chainlink price feed (latestRoundData function)
+  // Update MATIC price every 60 seconds
+  const maticInterval = setInterval(() => {
+    fetchMaticPrice(provider)
+  }, 60000)
+
+  // Store interval reference for cleanup
+  ;(provider as any)._maticInterval = maticInterval
+}
+
+async function fetchMaticPrice(provider: ethers.providers.WebSocketProvider) {
+  try {
+    console.log("📡 Fetching MATIC price from Chainlink feed...")
+
+    // MATIC/USD Chainlink price feed
     const CHAINLINK_ABI = [
       "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
       "function decimals() external view returns (uint8)",
     ]
 
-    const contract = new ethers.Contract(feedAddress, CHAINLINK_ABI, provider)
+    const contract = new ethers.Contract("0x7bAC85A8a13A4BcD8abb3eB7d6b4d632c5a57676", CHAINLINK_ABI, provider)
 
-    // Get both price and decimals to ensure accuracy
     const [roundData, decimals] = await Promise.all([contract.latestRoundData(), contract.decimals()])
 
-    const tokenPrice = Number.parseFloat(ethers.utils.formatUnits(roundData.answer, decimals))
+    const maticPrice = Number.parseFloat(ethers.utils.formatUnits(roundData.answer, decimals))
 
-    console.log(`💲 ${token} price from Chainlink:`, {
-      price: `$${tokenPrice.toFixed(token === "MATIC" ? 4 : 2)}`,
-      decimals: decimals,
-      rawAnswer: roundData.answer.toString(),
-      updatedAt: new Date(roundData.updatedAt.toNumber() * 1000).toLocaleString(),
-    })
+    console.log(`💲 MATIC price from Chainlink: $${maticPrice.toFixed(4)}`)
 
-    // Validate price range with more reasonable bounds
-    const isValidPrice =
-      token === "ETH"
-        ? tokenPrice > 500 && tokenPrice < 10000 // ETH: $500-$10,000
-        : tokenPrice > 0.05 && tokenPrice < 5 // MATIC: $0.05-$5
-
-    if (isValidPrice) {
-      useGasStore.getState().updateTokenPrice(token, tokenPrice)
-      console.log(`✅ ${token} price updated successfully: $${tokenPrice.toFixed(token === "MATIC" ? 4 : 2)}`)
+    // Validate price range
+    if (maticPrice > 0.05 && maticPrice < 5) {
+      useGasStore.getState().updateTokenPrice("MATIC", maticPrice)
+      console.log(`✅ MATIC price updated: $${maticPrice.toFixed(4)}`)
     } else {
-      console.warn(`⚠️ ${token} price $${tokenPrice} is outside expected range, using fallback`)
-      throw new Error(`Price outside expected range: ${tokenPrice}`)
+      console.warn(`⚠️ MATIC price $${maticPrice} is outside expected range, using fallback`)
+      useGasStore.getState().updateTokenPrice("MATIC", 0.85)
     }
   } catch (error) {
-    console.error(`❌ Error fetching ${token} price:`, error)
-
-    // Use more realistic fallback prices based on recent market data
-    const fallbackPrices = {
-      ETH: 2500, // More conservative ETH price
-      MATIC: 0.85, // More realistic MATIC price
-    }
-
-    console.log(`🔄 Using fallback price for ${token}: $${fallbackPrices[token]}`)
-    useGasStore.getState().updateTokenPrice(token, fallbackPrices[token])
+    console.error("❌ Error fetching MATIC price:", error)
+    useGasStore.getState().updateTokenPrice("MATIC", 0.85) // Fallback price
   }
 }
 
-export { fetchTokenPrices }
+export { fetchInitialUniswapPrice }
