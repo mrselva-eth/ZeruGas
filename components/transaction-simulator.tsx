@@ -48,10 +48,10 @@ export function TransactionSimulator() {
   const cheapestChain = costs.reduce((min, current) => (current.gasCostUsd < min.gasCostUsd ? current : min))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 transaction-simulator">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="txValue" className="text-black">
+          <Label htmlFor="txValue" className="text-black font-content">
             Transaction Value
           </Label>
           <Input
@@ -61,7 +61,7 @@ export function TransactionSimulator() {
             value={transactionValue}
             onChange={(e) => setTransactionValue(e.target.value)}
             placeholder="0.5"
-            className="text-black border-2"
+            className="text-black border-2 font-content"
             style={{
               backgroundColor: "#ffffff",
               borderColor: "#1A1B30",
@@ -69,7 +69,7 @@ export function TransactionSimulator() {
           />
         </div>
         <div>
-          <Label htmlFor="gasLimit" className="text-black">
+          <Label htmlFor="gasLimit" className="text-black font-content">
             Gas Limit
           </Label>
           <Input
@@ -78,7 +78,7 @@ export function TransactionSimulator() {
             value={gasLimit}
             onChange={(e) => setGasLimit(e.target.value)}
             placeholder="21000"
-            className="text-black border-2"
+            className="text-black border-2 font-content"
             style={{
               backgroundColor: "#ffffff",
               borderColor: "#1A1B30",
@@ -100,20 +100,20 @@ export function TransactionSimulator() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-semibold capitalize flex items-center gap-2 text-black">
+                  <div className="font-semibold capitalize flex items-center gap-2 text-black font-content">
                     {cost.config.name}
                     {cost.chain === cheapestChain.chain && (
-                      <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">Cheapest</span>
+                      <span className="text-xs bg-green-600 text-white px-2 py-1 rounded font-content">Cheapest</span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 font-content">
                     Gas: {cost.gasPrice.toFixed(1)} gwei • {cost.config.symbol}: $
                     {tokenPrices[cost.config.token].toFixed(cost.config.token === "MATIC" ? 4 : 2)}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-black">${cost.totalCostUsd.toFixed(4)}</div>
-                  <div className="text-sm text-gray-600">Gas: ${cost.gasCostUsd.toFixed(4)}</div>
+                  <div className="font-semibold text-black font-content">${cost.totalCostUsd.toFixed(4)}</div>
+                  <div className="text-sm text-gray-600 font-content">Gas: ${cost.gasCostUsd.toFixed(4)}</div>
                 </div>
               </div>
             </CardContent>
@@ -121,7 +121,7 @@ export function TransactionSimulator() {
         ))}
       </div>
 
-      <div className="text-sm text-gray-600">
+      <div className="text-sm text-gray-600 font-content">
         <Calculator className="inline h-4 w-4 mr-1" />
         Calculations use real-time token prices: ETH ${tokenPrices.ETH.toFixed(2)}, MATIC $
         {tokenPrices.MATIC.toFixed(4)}

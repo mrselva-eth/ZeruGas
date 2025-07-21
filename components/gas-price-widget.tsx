@@ -82,11 +82,11 @@ export function GasPriceWidget({ chain }: GasPriceWidgetProps) {
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2 text-black">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2 text-black font-heading">
             <div className={`w-3 h-3 rounded-full ${config.color}`} />
             {config.name}
           </CardTitle>
-          <Badge variant="outline" className={`${config.textColor} border-gray-400 bg-transparent`}>
+          <Badge variant="outline" className={`${config.textColor} border-gray-400 bg-transparent font-content`}>
             {config.symbol}
           </Badge>
         </div>
@@ -94,18 +94,20 @@ export function GasPriceWidget({ chain }: GasPriceWidgetProps) {
       <CardContent className="space-y-4">
         <div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Current Gas</span>
+            <span className="text-sm text-gray-600 font-content">Current Gas</span>
             <div className="flex items-center gap-1">
               {getTrendIcon()}
-              <span className={`text-sm font-medium ${getTrendColor()}`}>{Math.abs(trendPercentage).toFixed(1)}%</span>
+              <span className={`text-sm font-medium ${getTrendColor()} font-content`}>
+                {Math.abs(trendPercentage).toFixed(1)}%
+              </span>
             </div>
           </div>
-          <div className="text-2xl font-bold text-black">
+          <div className="text-2xl font-bold text-black font-content">
             {currentGas.toFixed(1)} <span className="text-sm font-normal text-gray-600">gwei</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-4 text-sm font-content">
           <div>
             <div className="text-gray-600">Base Fee</div>
             <div className="font-semibold text-black">{chainData.baseFee.toFixed(1)} gwei</div>
@@ -117,16 +119,16 @@ export function GasPriceWidget({ chain }: GasPriceWidgetProps) {
         </div>
 
         <div className="pt-2 border-t border-gray-300">
-          <div className="text-sm text-gray-600">Standard Transfer Cost</div>
-          <div className="font-semibold text-black">
+          <div className="text-sm text-gray-600 font-content">Standard Transfer Cost</div>
+          <div className="font-semibold text-black font-content">
             {standardTxCost.toFixed(6)} {config.symbol}
           </div>
-          <div className="text-sm" style={{ color: "#1A1B30" }}>
+          <div className="text-sm font-content" style={{ color: "#1A1B30" }}>
             ≈ ${standardTxCostUsd.toFixed(4)} USD
           </div>
         </div>
 
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-gray-500 font-content">
           Last updated: {chainData.lastUpdate ? new Date(chainData.lastUpdate).toLocaleTimeString() : "Never"}
         </div>
       </CardContent>

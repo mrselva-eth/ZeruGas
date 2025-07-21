@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Font Faces */
+@font-face {
+  font-family: "Bungee";
+  src: url("/fonts/Bungee-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Domine";
+  src: url("/fonts/Domine-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     /* Light theme colors */
@@ -39,7 +56,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", system-ui, sans-serif;
+    font-family: "Domine", Georgia, serif; /* Default content font */
     background-color: #e9e9e9 !important; /* Force light background */
     color: #000000 !important; /* Force black text */
   }
@@ -100,5 +117,74 @@
 
   .theme-text-muted {
     color: #737373 !important;
+  }
+
+  /* Font utility classes */
+  .font-heading {
+    font-family: "Bungee", system-ui, sans-serif;
+  }
+
+  .font-content {
+    font-family: "Domine", Georgia, serif;
+  }
+
+  /* Typing animation utilities */
+  .typing-cursor {
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    51%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Smooth height transitions for typing animation containers */
+  .typing-container {
+    transition: height 0.3s ease-in-out;
+  }
+
+  /* Force dark blue focus colors and remove yellow */
+  input:focus,
+  input:focus-visible,
+  .focus\:ring-2:focus,
+  .focus-visible\:ring-2:focus-visible {
+    outline: none !important;
+    border-color: #1a1b30 !important;
+    box-shadow: 0 0 0 2px #1a1b30 !important;
+    ring-color: #1a1b30 !important;
+  }
+
+  /* Remove any yellow focus colors */
+  input:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 2px #1a1b30 !important;
+  }
+
+  /* Specific override for transaction simulator inputs */
+  .transaction-simulator input:focus,
+  .transaction-simulator input:focus-visible {
+    border-color: #1a1b30 !important;
+    box-shadow: 0 0 0 2px #1a1b30 !important;
+    outline: none !important;
+  }
+
+  /* Remove any white backgrounds from images */
+  .logo-clean {
+    background: transparent !important;
+    mix-blend-mode: multiply;
+  }
+
+  /* Ensure no button backgrounds interfere with logo */
+  .chat-button-clean {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
   }
 }

@@ -1,9 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import "./globals.css"
-
-const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Zeru Gas Tracker",
@@ -22,8 +19,10 @@ export default function RootLayout({
     <html lang="en" className="light">
       <head>
         <link rel="icon" href="/favicon.ico" />
+        <link rel="preload" href="/fonts/Bungee-Regular.ttf" as="font" type="font/truetype" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/Domine-Regular.ttf" as="font" type="font/truetype" crossOrigin="anonymous" />
       </head>
-      <body className={`${inter.className} theme-light`}>{children}</body>
+      <body className="theme-light font-content">{children}</body>
     </html>
   )
 }

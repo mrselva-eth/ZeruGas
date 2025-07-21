@@ -13,7 +13,7 @@ export function ModeToggle() {
         variant={mode === "live" ? "default" : "outline"}
         size="sm"
         onClick={() => setMode("live")}
-        className={`flex items-center gap-2 ${
+        className={`flex items-center gap-2 transition-all duration-200 font-content ${
           mode === "live" ? "text-white hover:opacity-90" : "border-gray-400 text-gray-700 bg-white hover:bg-gray-100"
         }`}
         style={mode === "live" ? { backgroundColor: "#1A1B30" } : {}}
@@ -25,7 +25,7 @@ export function ModeToggle() {
         variant={mode === "simulation" ? "default" : "outline"}
         size="sm"
         onClick={() => setMode("simulation")}
-        className={`flex items-center gap-2 ${
+        className={`flex items-center gap-2 transition-all duration-200 font-content ${
           mode === "simulation"
             ? "text-white hover:opacity-90"
             : "border-gray-400 text-gray-700 bg-white hover:bg-gray-100"
